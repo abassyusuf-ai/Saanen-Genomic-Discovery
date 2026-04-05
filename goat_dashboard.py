@@ -23,13 +23,13 @@ if uploaded_file is not None:
         df.columns = schema[:len(df.columns)]
 
         # 2. THE CRITICAL FIX: Convert strings to numbers
-        # We force Ti, Tv, nHet, nHomAlt, and Depth to be numeric
+        # We force numeric conversion for the columns used in calculations
         cols_to_fix = ["Ti", "Tv", "nHet", "nHomAlt", "Depth", "nMiss"]
         for col in cols_to_fix:
             df[col] = pd.to_numeric(df[col], errors='coerce')
 
-        # 3. Drop any rows that failed conversion (like header lines)
-        df = df.dropna(subset=["Ti", "Tv"])
+        # 3. Clean the Data: Drop rows that aren't numeric (like headers)
+        df = df.dropna(subset=["Ti", "Tv", "nHet", "nHomAlt"])
 
         # 4. Perform the calculation (Now it works!)
         df['TiTv'] = df['Ti'] / df['Tv']
@@ -51,10 +51,11 @@ if uploaded_file is not None:
 
         with t2:
             st.markdown("### Figure 2: Lineage Stabilization")
+            # This identifies the "Gold" goats for your medicinal traits
             fig2 = px.scatter(df, x="nHet", y="nHomAlt", color="TiTv", size="Depth", hover_name="Sample", template=template)
             st.plotly_chart(fig2, use_container_width=True)
 
     except Exception as e:
         st.error(f"⚠️ Data Type Error: {e}")
 else:
-    st.info("👋 System Idle. Please upload your research data above to begin.")
+    st.info("👋 System Ready. Please upload your research data above to begin.")
