@@ -4,61 +4,72 @@ import plotly.express as px
 import io
 
 st.set_page_config(page_title="Genomic Research Workbench", layout="wide")
-st.title("🧬 Precision Discovery Suite")
+st.title("🧬 Advanced Genomic Discovery Suite")
 
 uploaded_file = st.file_uploader("📥 Upload 'Individual_Goat_Stats.txt'", type=['txt', 'csv', 'tsv'])
 
 if uploaded_file is not None:
     try:
-        # 1. READ RAW DATA
-        stringio = io.StringIO(uploaded_file.getvalue().decode("utf-8"))
-        # Split every PSC line into a list of words
-        raw_data = [line.split() for line in stringio if line.startswith("PSC")]
+        # 1. CAPTURE HEADER AND DATA
+        content = uploaded_file.getvalue().decode("utf-8").splitlines()
         
-        df_raw = pd.DataFrame(raw_data)
-
-        # 2. AUTO-COLUMN DISCOVERY
-        # We need to find: SampleName, nHet, nHomAlt, Ti, Tv, Depth
-        # In BCFtools, Sample is usually index 2, nHet is 4, nHomAlt is 5, Ti is 8, Tv is 9
+        # Find the column definition line (usually starts with # PSC)
+        header_line = [l for l in content if l.startswith("# PSC")][-1]
+        columns = header_line.replace("# ", "").split("\t")
         
-        df = pd.DataFrame()
-        df['Sample'] = df_raw[2]
-        df['nHet'] = pd.to_numeric(df_raw[4], errors='coerce')
-        df['nHomAlt'] = pd.to_numeric(df_raw[5], errors='coerce')
-        df['Ti'] = pd.to_numeric(df_raw[8], errors='coerce')
-        df['Tv'] = pd.to_numeric(df_raw[9], errors='coerce')
-        df['Depth'] = pd.to_numeric(df_raw[11], errors='coerce')
-
-        # 3. CALCULATE
-        df['TiTv'] = df['Ti'] / df['Tv']
+        # Capture the data lines
+        data_rows = [l.split("\t") for l in content if l.startswith("PSC")]
         
-        # Clean up any broken rows
-        df = df.dropna(subset=['nHet', 'nHomAlt', 'TiTv'])
-        # Filter out extreme outliers that break the scale
-        df = df[df['TiTv'] > 0] 
+        df = pd.DataFrame(data_rows, columns=columns)
 
-        if len(df) > 0:
-            st.success(f"✅ Alignment Fixed: {len(df)} Saanen samples mapped.")
+        # 2. DYNAMIC MAPPING (The Fix)
+        # This looks for the column names regardless of their position
+        target_cols = {
+            'Sample': ['sample', 'id', 'Sample'],
+            'nHet': ['nHet', 'het', 'nhet'],
+            'nHomAlt': ['nHomAlt', 'hom_alt', 'nhomalt'],
+            'Ti': ['Ti', 'ts', 'transitions'],
+            'Tv': ['Tv', 'tv', 'transversions'],
+            'Depth': ['average_depth', 'depth', 'dp']
+        }
 
-            t1, t2 = st.tabs(["🎯 Discovery Map", "🛡️ Quality Check"])
+        final_df = pd.DataFrame()
+        for internal_name, aliases in target_cols.items():
+            for alias in aliases:
+                match = [c for c in df.columns if alias.lower() in c.lower()]
+                if match:
+                    final_df[internal_name] = pd.to_numeric(df[match[0]], errors='coerce')
+                    break
+        
+        # Add Sample name separately as it's not numeric
+        sample_col = [c for c in df.columns if "sample" in c.lower() or "id" in c.lower()]
+        if sample_col:
+            final_df['Sample'] = df[sample_col[0]]
 
-            with t1:
-                st.markdown("### Figure 2: Lineage Stabilization")
-                # This scatter plot will now show the cloud of 298 dots
-                fig2 = px.scatter(df, x="nHet", y="nHomAlt", color="TiTv", 
-                                 size="Depth", hover_name="Sample", 
-                                 color_continuous_scale="Viridis",
-                                 template="plotly_dark",
-                                 title="Target: High nHomAlt (Y-axis) identifies stabilized medicinal traits")
-                st.plotly_chart(fig2, use_container_width=True)
-            
-            with t2:
-                st.markdown("### Figure 1: Technical Integrity")
-                fig1 = px.scatter(df, x="Depth", y="TiTv", hover_name="Sample", template="plotly_dark")
-                fig1.add_hline(y=2.1, line_dash="dash", line_color="red", annotation_text="Biological Standard (2.1)")
-                st.plotly_chart(fig1, use_container_width=True)
-        else:
-            st.error("❌ Data detected, but columns are not aligning. Please check the file format.")
+        # 3. CALCULATIONS
+        final_df['TiTv'] = final_df['Ti'] / final_df['Tv']
+        final_df = final_df.dropna(subset=['nHet', 'nHomAlt', 'TiTv'])
+
+        # --- REPLICATING RESEARCH FIGURES ---
+        st.success(f"✅ Alignment Fixed: {len(final_df)} Saanen samples mapped.")
+
+        tab1, tab2 = st.tabs(["📊 Population Structure", "🎯 Discovery Map"])
+
+        with tab1:
+            st.markdown("### Population Distribution (Nature Style)")
+            # Replicating the "Violin" plots from your shared research
+            fig1 = px.violin(final_df, y="nHomAlt", box=True, points="all", 
+                            hover_name="Sample", color_discrete_sequence=["#BB5566"],
+                            template="plotly_dark", title="Homozygosity Spread (Trait Stabilization)")
+            st.plotly_chart(fig1, use_container_width=True)
+
+        with tab2:
+            st.markdown("### Stabilization Map (Selection Pressure)")
+            # Replicating the scatter analysis
+            fig2 = px.scatter(final_df, x="nHet", y="nHomAlt", color="TiTv", 
+                             size="Depth", hover_name="Sample", 
+                             color_continuous_scale="Viridis", template="plotly_dark")
+            st.plotly_chart(fig2, use_container_width=True)
 
     except Exception as e:
-        st.error(f"⚠️ System Error: {e}")
+        st.error(f"⚠️ Column Alignment Failed: {e}. Please ensure the file is a standard BCFtools stats output.")
