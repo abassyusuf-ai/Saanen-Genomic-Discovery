@@ -8,38 +8,37 @@ N_COLORS = ["#004488", "#DDAA33", "#BB5566", "#000000"]
 
 st.set_page_config(page_title="Saanen Genomic Explorer", layout="wide")
 
-# --- SIDEBAR CONTROLS ---
-st.sidebar.header("📥 Data Input")
-uploaded_file = st.sidebar.file_uploader("Upload your Genomic Stats File", type=['txt', 'csv', 'tsv'])
-
-st.sidebar.header("🔬 Journal Settings")
-pub_mode = st.sidebar.checkbox("Enable Nature Publication Mode (White BG)")
-
 # --- DATA PROCESSING ENGINE ---
 def process_data(file):
     # Detect separator (Genomics tools often use Tabs)
     df = pd.read_csv(file, sep=None, engine='python', header=None, on_bad_lines='skip')
     
-    # Standard BCFtools PSC Column Mapping
-    # 2=Sample, 4=nHet, 5=nHomAlt, 6=nMiss, 8=Ti, 9=Tv
+    # BCFtools PSC Mapping
     df.columns = ["Type", "ID", "Sample", "nHomRef", "nHet", "nHomAlt", "nMiss", "nSing", "Ti", "Tv", "Indels", "Depth", "Misc1", "Misc2"]
-    
-    # Calculate Biological Metrics
     df['TiTv'] = df['Ti'] / df['Tv']
     
-    # Generate PCA Coordinates (Simulated for visualization)
+    # PCA Simulation
     np.random.seed(42)
     df['PC1'] = np.random.normal(0, 1, len(df))
     df['PC2'] = np.random.normal(0, 1, len(df))
     return df
 
-# --- DASHBOARD LOGIC ---
+# --- MAIN INTERFACE ---
+st.title("🧬 Saanen Medicinal Genomics Discovery")
+
+# HUGE UPLOAD BOX IN THE MIDDLE
+uploaded_file = st.file_uploader("📤 STEP 1: Upload your 'Individual_Goat_Stats.txt' here to begin", type=['txt', 'csv', 'tsv'])
+
 if uploaded_file is not None:
     try:
         df = process_data(uploaded_file)
+        
+        # Sidebar now only holds settings
+        st.sidebar.header("🔬 Journal Settings")
+        pub_mode = st.sidebar.checkbox("Enable Nature Publication Mode")
         template = "plotly_white" if pub_mode else "plotly_dark"
 
-        st.success(f"Successfully loaded {len(df)} samples!")
+        st.success(f"✅ Dataset Loaded: {len(df)} Goats identified.")
         
         # Dashboard Tabs
         tab1, tab2, tab3 = st.tabs(["📈 Quality Control", "📍 Selection Outliers", "🌍 Population Structure"])
@@ -51,7 +50,7 @@ if uploaded_file is not None:
             st.plotly_chart(fig1, use_container_width=True)
 
         with tab2:
-            st.subheader("Figure 2: Homozygosity vs Heterozygosity")
+            st.subheader("Figure 2: Zygosity Outlier Analysis")
             fig2 = px.scatter(df, x="nHet", y="nHomAlt", hover_name="Sample", 
                               size="Depth", color="TiTv", template=template)
             st.plotly_chart(fig2, use_container_width=True)
@@ -62,7 +61,8 @@ if uploaded_file is not None:
             st.plotly_chart(fig3, use_container_width=True)
 
     except Exception as e:
-        st.error(f"Error parsing file: {e}. Please ensure the file matches the BCFtools PSC format.")
+        st.error(f"Error parsing file: {e}")
 else:
-    st.info("👋 Welcome! Please upload your 'Individual_Goat_Stats.txt' in the sidebar to begin the analysis.")
-    st.image("https://images.unsplash.com/photo-1524024973431-2ad916746881?auto=format&fit=crop&q=80&w=1000", caption="Ready for Saanen Genomic Analysis")
+    # This shows when no file is uploaded
+    st.info("Waiting for data... Please upload the stats file above to generate the Nature-grade figures.")
+    st.warning("⚠️ Note: Your raw VCF files (41GB) are too large for this. Use the 'Individual_Goat_Stats.txt' (5.8MB) instead.")
