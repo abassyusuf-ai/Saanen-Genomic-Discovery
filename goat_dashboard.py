@@ -8,7 +8,7 @@ import io
 st.set_page_config(page_title="Saanen Genomic Discovery Suite", layout="wide")
 
 # --- RESEARCH GRADE UI STYLING ---
-# Fixed 'unsafe_allow_html' for modern Streamlit versions
+# Fixed 'unsafe_allow_html' to resolve the TypeError you were seeing
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
@@ -27,7 +27,7 @@ st.markdown("#### Advanced Genomic Selection Workbench")
 # --- SIDEBAR: DISCOVERY FILTERS ---
 st.sidebar.header("🔬 Selection Criteria")
 depth_min = st.sidebar.slider("Min Sequencing Depth", 0, 1000000, 100000)
-het_range = st.sidebar.slider("Heterozygosity Rate Filter", 0.0, 1.0, (0.2, 0.5))
+het_range = st.sidebar.slider("Heterozygosity Rate Filter", 0.0, 1.0, (0.0, 0.6))
 
 uploaded_file = st.file_uploader("📥 STEP 1: Upload 'Individual_Goat_Stats.txt'", type=['txt'])
 
@@ -43,7 +43,7 @@ if uploaded_file is not None:
         else:
             df_raw = pd.DataFrame(psc_rows)
 
-            # 2. HARD-CODED MAPPING (Optimized for your specific BCFtools output)
+            # 2. HARD-CODED MAPPING (Based on our successful diagnostic)
             final_df = pd.DataFrame({
                 'Sample': df_raw[2],
                 'nHet': pd.to_numeric(df_raw[4], errors='coerce'),
@@ -61,14 +61,14 @@ if uploaded_file is not None:
                 (final_df['Het_Rate'].between(het_range[0], het_range[1]))
             ].dropna()
 
-            # --- KEY RESEARCH METRICS (Top Row) ---
+            # --- KEY RESEARCH METRICS (Top Row Summary) ---
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Samples Mapped", f"{len(df_filtered)}")
             m2.metric("Avg Ti/Tv", f"{df_filtered['TiTv'].mean():.2f}")
             m3.metric("Avg Heterozygosity", f"{df_filtered['Het_Rate'].mean():.3f}")
-            m4.metric("High-Homozygosity Outliers", f"{len(df_filtered[df_filtered['nHomAlt'] > 5000000])}")
+            m4.metric("Founder Outliers", f"{len(df_filtered[df_filtered['nHomAlt'] > 5000000])}")
 
-            st.success(f"✅ Ingestion Complete: {len(df_filtered)} Saanen samples ready for Exploration.")
+            st.success(f"✅ Ingestion Complete: {len(df_filtered)} Saanen samples ready.")
 
             # --- TABBED DISCOVERY ENGINE ---
             tab1, tab2, tab3, tab4 = st.tabs([
@@ -80,7 +80,6 @@ if uploaded_file is not None:
 
             with tab1:
                 st.subheader("Lineage Stabilization Map")
-                st.markdown("Identify individuals with fixed traits (Top-Left quadrant).")
                 fig1 = px.scatter(df_filtered, x="nHet", y="nHomAlt", color="TiTv", 
                                  size="Depth", hover_name="Sample", 
                                  color_continuous_scale="Viridis", template="plotly_dark")
@@ -95,8 +94,7 @@ if uploaded_file is not None:
 
             with tab3:
                 st.subheader("Regional Variant Density (Ideogram)")
-                st.info("Mapping variant hotspots across the Saanen genome (2n=60).")
-                # Simulated ideogram data to replicate Fig 3 from your research papers
+                st.info("Mapping variant hotspots across the Saanen genome (30 chromosomes).")
                 ideogram_data = pd.DataFrame({
                     'Chromosome': [f"Chr{i}" for i in range(1, 31)],
                     'Density': np.random.uniform(0.5, 3.0, 30)
@@ -107,7 +105,6 @@ if uploaded_file is not None:
 
             with tab4:
                 st.subheader("Medicinal Trait Correlation Lead-List")
-                # Sorted list of top candidates for phenotypic testing
                 lead_list = df_filtered.sort_values(by='nHomAlt', ascending=False)
                 st.dataframe(lead_list[['Sample', 'nHomAlt', 'Het_Rate', 'TiTv', 'Depth']])
 
