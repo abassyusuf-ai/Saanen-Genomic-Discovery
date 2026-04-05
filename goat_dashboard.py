@@ -11,48 +11,50 @@ st.set_page_config(page_title="Genomic Research Workbench", layout="wide")
 st.title("🧬 Genomic Research Workbench")
 st.markdown("#### Precision Lineage & Variant Discovery Suite")
 
-# --- PHASE 1: THE IDLE GATE ---
 uploaded_file = st.file_uploader("📥 STEP 1: Upload 'Individual_Goat_Stats.txt'", type=['txt', 'csv', 'tsv'])
 
 if uploaded_file is not None:
     try:
-        # Load and handle column mismatch automatically
+        # Load data
         df = pd.read_csv(uploaded_file, sep=None, engine='python', header=None, on_bad_lines='skip')
         
-        # BCFtools standard names
+        # 1. Flexible Schema Mapping
         schema = ["Type", "ID", "Sample", "nHomRef", "nHet", "nHomAlt", "nMiss", "nSing", "Ti", "Tv", "Indels", "Depth", "M1", "M2", "M3"]
-        df.columns = schema[:len(df.columns)] # Only use names for existing columns
-        
-        # Calculations
+        df.columns = schema[:len(df.columns)]
+
+        # 2. THE CRITICAL FIX: Convert strings to numbers
+        # We force Ti, Tv, nHet, nHomAlt, and Depth to be numeric
+        cols_to_fix = ["Ti", "Tv", "nHet", "nHomAlt", "Depth", "nMiss"]
+        for col in cols_to_fix:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+
+        # 3. Drop any rows that failed conversion (like header lines)
+        df = df.dropna(subset=["Ti", "Tv"])
+
+        # 4. Perform the calculation (Now it works!)
         df['TiTv'] = df['Ti'] / df['Tv']
-        df['Selection_Index'] = df['nHomAlt'] / df['nHet'] # Higher = more stabilized traits
+        df['Selection_Index'] = df['nHomAlt'] / df['nHet']
 
         st.success(f"✅ Ingestion Complete: {len(df)} Saanen samples ready for Exploration.")
 
-        # --- PHASE 2: EXPLORATORY MODULES ---
+        # --- EXPLORATORY MODULES ---
         st.sidebar.header("🔬 Visual Controls")
-        pub_mode = st.sidebar.checkbox("Nature Publication Mode")
-        template = "plotly_white" if pub_mode else "plotly_dark"
+        template = "plotly_white" if st.sidebar.checkbox("Nature Publication Mode") else "plotly_dark"
 
-        t1, t2, t3 = st.tabs(["🛡️ Quality Audit", "🎯 Selection Pressure", "📊 Population Diversity"])
+        t1, t2 = st.tabs(["🛡️ Quality Audit", "🎯 Selection Pressure"])
 
         with t1:
-            st.markdown("### Figure 1: Technical Integrity")
+            st.markdown("### Figure 1: Technical Integrity (Ti/Tv)")
             fig1 = px.scatter(df, x="Depth", y="TiTv", color="nMiss", hover_name="Sample", template=template)
             fig1.add_hline(y=2.1, line_dash="dash", line_color="red", annotation_text="Ideal Ti/Tv")
             st.plotly_chart(fig1, use_container_width=True)
 
         with t2:
             st.markdown("### Figure 2: Lineage Stabilization")
-            fig2 = px.scatter(df, x="nHet", y="nHomAlt", color="TiTv", size="Selection_Index", hover_name="Sample", template=template)
+            fig2 = px.scatter(df, x="nHet", y="nHomAlt", color="TiTv", size="Depth", hover_name="Sample", template=template)
             st.plotly_chart(fig2, use_container_width=True)
 
-        with t3:
-            st.markdown("### Figure 3: Heterozygosity Spread")
-            fig3 = px.violin(df, y="Selection_Index", box=True, points="all", template=template)
-            st.plotly_chart(fig3, use_container_width=True)
-
     except Exception as e:
-        st.error(f"⚠️ Mapping Error: {e}")
+        st.error(f"⚠️ Data Type Error: {e}")
 else:
     st.info("👋 System Idle. Please upload your research data above to begin.")
