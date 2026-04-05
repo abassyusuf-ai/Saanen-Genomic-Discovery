@@ -4,59 +4,61 @@ import plotly.express as px
 import io
 
 st.set_page_config(page_title="Genomic Research Workbench", layout="wide")
-st.title("🧬 Advanced Genomic Discovery Suite")
+st.title("🧬 Precision Discovery Suite")
 
 uploaded_file = st.file_uploader("📥 Upload 'Individual_Goat_Stats.txt'", type=['txt', 'csv', 'tsv'])
 
 if uploaded_file is not None:
     try:
-        # 1. THE "PRECISION SURGERY" ON DATA
+        # 1. READ RAW DATA
         stringio = io.StringIO(uploaded_file.getvalue().decode("utf-8"))
-        # We find the PSC lines and split them by any whitespace
-        data = [line.split() for line in stringio if line.startswith("PSC")]
+        # Split every PSC line into a list of words
+        raw_data = [line.split() for line in stringio if line.startswith("PSC")]
         
-        # 2. ALIGNING COLUMNS (The reason your dots were at zero)
-        # BCFtools PSC Order: [0]PSC, [1]ID, [2]Sample, [3]nHomRef, [4]nHet, [5]nHomAlt...
-        df = pd.DataFrame(data)
-        df = df[[2, 3, 4, 5, 8, 9, 11]] # Select: Sample, HomRef, Het, HomAlt, Ti, Tv, Depth
-        df.columns = ["Sample", "nHomRef", "nHet", "nHomAlt", "Ti", "Tv", "Depth"]
+        df_raw = pd.DataFrame(raw_data)
 
-        # 3. CONVERTING TO SCIENTIFIC NUMBERS
-        for col in ["nHomRef", "nHet", "nHomAlt", "Ti", "Tv", "Depth"]:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
+        # 2. AUTO-COLUMN DISCOVERY
+        # We need to find: SampleName, nHet, nHomAlt, Ti, Tv, Depth
+        # In BCFtools, Sample is usually index 2, nHet is 4, nHomAlt is 5, Ti is 8, Tv is 9
+        
+        df = pd.DataFrame()
+        df['Sample'] = df_raw[2]
+        df['nHet'] = pd.to_numeric(df_raw[4], errors='coerce')
+        df['nHomAlt'] = pd.to_numeric(df_raw[5], errors='coerce')
+        df['Ti'] = pd.to_numeric(df_raw[8], errors='coerce')
+        df['Tv'] = pd.to_numeric(df_raw[9], errors='coerce')
+        df['Depth'] = pd.to_numeric(df_raw[11], errors='coerce')
 
-        # 4. CALCULATING METRICS
+        # 3. CALCULATE
         df['TiTv'] = df['Ti'] / df['Tv']
-        df['Heterozygosity_Rate'] = df['nHet'] / (df['nHomRef'] + df['nHet'] + df['nHomAlt'])
-        df = df.dropna()
+        
+        # Clean up any broken rows
+        df = df.dropna(subset=['nHet', 'nHomAlt', 'TiTv'])
+        # Filter out extreme outliers that break the scale
+        df = df[df['TiTv'] > 0] 
 
-        st.success(f"✅ Protocol Active: {len(df)} Saanen genomes mapped.")
+        if len(df) > 0:
+            st.success(f"✅ Alignment Fixed: {len(df)} Saanen samples mapped.")
 
-        # --- REPLICATING THE RESEARCH FIGURES ---
-        tab1, tab2, tab3 = st.tabs(["📊 Population Structure", "🛡️ Quality Audit", "🎯 Variant Discovery"])
+            t1, t2 = st.tabs(["🎯 Discovery Map", "🛡️ Quality Check"])
 
-        with tab1:
-            st.markdown("### Population Heterozygosity (Similar to Fig 1a in your reference)")
-            # This replicates the "Violin/Density" style of the Nature paper
-            fig_pop = px.violin(df, y="Heterozygosity_Rate", box=True, points="all", 
-                               hover_name="Sample", color_discrete_sequence=["#BB5566"],
-                               template="plotly_dark", title="Heterozygosity Distribution across Herd")
-            st.plotly_chart(fig_pop, use_container_width=True)
-
-        with tab2:
-            st.markdown("### Technical Integrity (Ti/Tv Standards)")
-            fig_ti = px.histogram(df, x="TiTv", nbins=30, template="plotly_dark",
-                                 title="Ti/Tv Ratio Histogram (Expected Peak at 2.1)")
-            fig_ti.add_vline(x=2.1, line_dash="dash", line_color="red")
-            st.plotly_chart(fig_ti, use_container_width=True)
-
-        with tab3:
-            st.markdown("### Stabilization Map (The 'Discovery' Plot)")
-            # Replicating the scatter analysis to find medicinal founder candidates
-            fig_disc = px.scatter(df, x="nHet", y="nHomAlt", color="TiTv", size="Depth",
-                                 hover_name="Sample", template="plotly_dark",
-                                 color_continuous_scale="Viridis")
-            st.plotly_chart(fig_disc, use_container_width=True)
+            with t1:
+                st.markdown("### Figure 2: Lineage Stabilization")
+                # This scatter plot will now show the cloud of 298 dots
+                fig2 = px.scatter(df, x="nHet", y="nHomAlt", color="TiTv", 
+                                 size="Depth", hover_name="Sample", 
+                                 color_continuous_scale="Viridis",
+                                 template="plotly_dark",
+                                 title="Target: High nHomAlt (Y-axis) identifies stabilized medicinal traits")
+                st.plotly_chart(fig2, use_container_width=True)
+            
+            with t2:
+                st.markdown("### Figure 1: Technical Integrity")
+                fig1 = px.scatter(df, x="Depth", y="TiTv", hover_name="Sample", template="plotly_dark")
+                fig1.add_hline(y=2.1, line_dash="dash", line_color="red", annotation_text="Biological Standard (2.1)")
+                st.plotly_chart(fig1, use_container_width=True)
+        else:
+            st.error("❌ Data detected, but columns are not aligning. Please check the file format.")
 
     except Exception as e:
-        st.error(f"⚠️ Alignment Error: {e}")
+        st.error(f"⚠️ System Error: {e}")
