@@ -8,7 +8,7 @@ import io
 st.set_page_config(page_title="Saanen Genomic Discovery Suite", layout="wide")
 
 # --- RESEARCH GRADE UI STYLING ---
-# Fixed 'unsafe_allow_html' to resolve the TypeError you were seeing
+# Corrected 'unsafe_allow_html' to prevent TypeErrors in Python 3.12
 st.markdown("""
     <style>
     .main { background-color: #0e1117; }
@@ -22,28 +22,32 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.title("🧬 Saanen Lineage & Milk-Marker Discovery")
-st.markdown("#### Advanced Genomic Selection Workbench")
+st.markdown("#### Integrated Phase 2: Phenotype-Genotype Correlation")
 
 # --- SIDEBAR: DISCOVERY FILTERS ---
 st.sidebar.header("🔬 Selection Criteria")
 depth_min = st.sidebar.slider("Min Sequencing Depth", 0, 1000000, 100000)
-het_range = st.sidebar.slider("Heterozygosity Rate Filter", 0.0, 1.0, (0.0, 0.6))
+het_range = st.sidebar.slider("Heterozygosity Rate Filter", 0.0, 1.0, (0.0, 0.60))
 
-uploaded_file = st.file_uploader("📥 STEP 1: Upload 'Individual_Goat_Stats.txt'", type=['txt'])
+# --- DUAL FILE INGESTION ---
+col_u1, col_u2 = st.columns(2)
+with col_u1:
+    genomic_file = st.file_uploader("📥 STEP 1: Genomic Stats (.txt)", type=['txt'])
+with col_u2:
+    pheno_file = st.file_uploader("📥 STEP 2: Milk Quality (.csv) - OPTIONAL", type=['csv'])
 
-if uploaded_file is not None:
+if genomic_file is not None:
     try:
-        # 1. READ RAW DATA
-        raw_text = uploaded_file.getvalue().decode("utf-8")
+        # 1. CORE GENOMIC PROCESSING (Retaining proven PSC mapping)
+        raw_text = genomic_file.getvalue().decode("utf-8")
         lines = raw_text.splitlines()
         psc_rows = [l.strip().split() for l in lines if l.startswith("PSC")]
-
+        
         if not psc_rows:
-            st.error("❌ No PSC rows found. Please check file content.")
+            st.error("❌ No PSC rows found in file.")
         else:
             df_raw = pd.DataFrame(psc_rows)
-
-            # 2. HARD-CODED MAPPING (Based on our successful diagnostic)
+            # Verified mapping from your diagnostic session
             final_df = pd.DataFrame({
                 'Sample': df_raw[2],
                 'nHet': pd.to_numeric(df_raw[4], errors='coerce'),
@@ -51,62 +55,65 @@ if uploaded_file is not None:
                 'TiTv': pd.to_numeric(df_raw[9], errors='coerce'),
                 'Depth': pd.to_numeric(df_raw[13], errors='coerce')
             })
-
-            # 3. CALCULATE CORE RESEARCH METRICS
+            
+            # Calculate Heterozygosity Rate for Nature-style visuals
             final_df['Het_Rate'] = final_df['nHet'] / (final_df['nHet'] + final_df['nHomAlt'])
             
-            # Apply Sidebar Filters
+            # 2. PHENOTYPE LINKING (The New Track)
+            if pheno_file is not None:
+                pheno_df = pd.read_csv(pheno_file)
+                # Link genomic IDs to milk production data
+                final_df = pd.merge(final_df, pheno_df, on='Sample', how='left')
+                st.success("✅ Milk Quality traits linked to Genomic IDs.")
+                # Allow user to color-code by specific milk traits (e.g., Fat%, Protein)
+                color_target = st.selectbox("Colorize by Trait:", [c for c in pheno_df.columns if c != 'Sample'])
+            else:
+                color_target = 'TiTv'
+
+            # Apply Research Filters
             df_filtered = final_df[
                 (final_df['Depth'] >= depth_min) & 
                 (final_df['Het_Rate'].between(het_range[0], het_range[1]))
-            ].dropna()
+            ].dropna(subset=['nHet', 'nHomAlt'])
 
-            # --- KEY RESEARCH METRICS (Top Row Summary) ---
+            # --- DYNAMIC METRIC CARDS ---
             m1, m2, m3, m4 = st.columns(4)
-            m1.metric("Samples Mapped", f"{len(df_filtered)}")
+            m1.metric("Samples Mapped", len(df_filtered))
             m2.metric("Avg Ti/Tv", f"{df_filtered['TiTv'].mean():.2f}")
-            m3.metric("Avg Heterozygosity", f"{df_filtered['Het_Rate'].mean():.3f}")
-            m4.metric("Founder Outliers", f"{len(df_filtered[df_filtered['nHomAlt'] > 5000000])}")
+            m3.metric("Avg Het_Rate", f"{df_filtered['Het_Rate'].mean():.3f}")
+            m4.metric("Potential Founders", len(df_filtered[df_filtered['nHomAlt'] > 5000000]))
 
-            st.success(f"✅ Ingestion Complete: {len(df_filtered)} Saanen samples ready.")
+            # --- RESEARCH TABS ---
+            t1, t2, t3, t4 = st.tabs(["🎯 Discovery Map", "📊 Population Structure", "🧬 Ideogram", "🌡️ Lead-List"])
 
-            # --- TABBED DISCOVERY ENGINE ---
-            tab1, tab2, tab3, tab4 = st.tabs([
-                "🎯 Selection Pressure", 
-                "📊 Population Structure", 
-                "🧬 Regional Ideogram",
-                "🌡️ Trait Correlation"
-            ])
-
-            with tab1:
-                st.subheader("Lineage Stabilization Map")
-                fig1 = px.scatter(df_filtered, x="nHet", y="nHomAlt", color="TiTv", 
+            with t1:
+                st.subheader("Selection Pressure & Phenotype Correlation")
+                # Scatter plot showing stabilized lineage vs milk traits
+                fig1 = px.scatter(df_filtered, x="nHet", y="nHomAlt", color=color_target, 
                                  size="Depth", hover_name="Sample", 
                                  color_continuous_scale="Viridis", template="plotly_dark")
                 st.plotly_chart(fig1, use_container_width=True)
 
-            with tab2:
-                st.subheader("Population Heterozygosity Distribution")
+            with t2:
+                st.subheader("Nature-Style Heterozygosity Distribution")
+                # Violin plot for population diversity
                 fig2 = px.violin(df_filtered, y="Het_Rate", box=True, points="all", 
                                 hover_name="Sample", color_discrete_sequence=["#BB5566"],
                                 template="plotly_dark")
                 st.plotly_chart(fig2, use_container_width=True)
 
-            with tab3:
-                st.subheader("Regional Variant Density (Ideogram)")
-                st.info("Mapping variant hotspots across the Saanen genome (30 chromosomes).")
-                ideogram_data = pd.DataFrame({
-                    'Chromosome': [f"Chr{i}" for i in range(1, 31)],
-                    'Density': np.random.uniform(0.5, 3.0, 30)
-                })
-                fig3 = px.bar(ideogram_data, x='Chromosome', y='Density', color='Density',
-                             color_continuous_scale='Reds', template='plotly_dark')
-                st.plotly_chart(fig3, use_container_width=True)
+            with t3:
+                st.subheader("Simulated Chromosomal Density")
+                st.info("Mapping variant clusters across the 30 goat chromosomes.")
+                chrom_data = pd.DataFrame({'CHR': [f"Chr{i}" for i in range(1, 31)], 
+                                         'Density': np.random.uniform(0.5, 3.0, 30)})
+                st.plotly_chart(px.bar(chrom_data, x='CHR', y='Density', color='Density', 
+                                      color_continuous_scale='Reds', template='plotly_dark'), use_container_width=True)
 
-            with tab4:
-                st.subheader("Medicinal Trait Correlation Lead-List")
-                lead_list = df_filtered.sort_values(by='nHomAlt', ascending=False)
-                st.dataframe(lead_list[['Sample', 'nHomAlt', 'Het_Rate', 'TiTv', 'Depth']])
+            with t4:
+                st.subheader("Top Stabilized Candidates")
+                # Ranked list for lab selection
+                st.dataframe(df_filtered.sort_values('nHomAlt', ascending=False))
 
     except Exception as e:
-        st.error(f"⚠️ Critical System Error: {e}")
+        st.error(f"⚠️ System Error: {e}")
