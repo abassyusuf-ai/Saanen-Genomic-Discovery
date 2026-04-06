@@ -149,13 +149,13 @@ elif st.session_state.phase == 4:
         df['Merit_Score'] = (df[trait] / df[trait].max()) - (df['nHomAlt'] / df['nHomAlt'].max())
         
         # --- THE FIX ---
-        # Plotly size cannot be negative. We create a positive version for the chart only.
+        # Normalize size to be strictly positive (Merit Score - min value + 0.1 offset)
         df['Display_Size'] = df['Merit_Score'] - df['Merit_Score'].min() + 0.1
         
         col_x, col_y = st.columns([2, 1])
         with col_x:
             st.subheader("Figure 4: Selection Pressure Map")
-            # Using 'Display_Size' for size, but keeping 'Merit_Score' for color and hover
+            # We use 'Display_Size' for visual marker size to prevent the ValueError
             fig4 = px.scatter(df, x="nHomAlt", y=trait, size="Display_Size", color="Merit_Score",
                               hover_name="Sample", color_continuous_scale=PALETTE_MERIT, template=NATURE_THEME)
             st.plotly_chart(fig4, use_container_width=True)
