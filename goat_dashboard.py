@@ -53,48 +53,51 @@ if genomic_file is not None:
             })
             final_df['Het_Rate'] = final_df['nHet'] / (final_df['nHet'] + final_df['nHomAlt'])
         
-            # 2. SANITIZED PROCESS FOR MILK QUALITY
+            # 2. COLUMN-BY-COLUMN PROCESSING FOR MILK QUALITY
             if pheno_file is not None:
                 raw_pheno = pheno_file.getvalue().decode("utf-8")
-                pheno_lines = [line.strip().split() for line in raw_pheno.splitlines() if line.strip()]
+                # Manual split to handle line 23 irregularities
+                pheno_data = [line.strip().split() for line in raw_pheno.splitlines() if line.strip()]
                 
-                if len(pheno_lines) > 1:
-                    df_pheno = pd.DataFrame(pheno_lines[1:], columns=pheno_lines[0])
+                if len(pheno_data) > 1:
+                    df_pheno = pd.DataFrame(pheno_data[1:], columns=pheno_data[0])
                     
-                    # Identify the ID Column
+                    # Detect the ID Column (Sample)
                     possible_ids = ['Sample', 'ID', 'SampleID', 'Individual', 'Name']
                     found_col = next((c for c in df_pheno.columns if c in possible_ids or c.lower() in [p.lower() for p in possible_ids]), df_pheno.columns[0])
                     
+                    # Rename to standard 'Sample' for the merge
                     df_pheno = df_pheno.rename(columns={found_col: 'Sample'})
-                    df_pheno['Sample'] = df_pheno['Sample'].astype(str) # Force string
+                    df_pheno['Sample'] = df_pheno['Sample'].astype(str)
 
-                    # Only convert non-Sample columns to numeric
+                    # KEY FIX: Loop through columns individually for pd.to_numeric
                     for col in df_pheno.columns:
                         if col != 'Sample':
+                            # This ensures we pass a Series (column) to the function, not the whole DataFrame
                             df_pheno[col] = pd.to_numeric(df_pheno[col], errors='coerce')
                     
                     final_df = pd.merge(final_df, df_pheno, on='Sample', how='left')
-                    st.success(f"✅ Linked via {found_col}")
+                    st.success(f"✅ Linked via column: {found_col}")
                     
                     trait_options = [c for c in df_pheno.columns if c != 'Sample']
-                    color_target = st.selectbox("Colorize by Trait:", trait_options)
+                    color_target = st.selectbox("Colorize Discovery Map by:", trait_options)
                 else:
                     color_target = 'TiTv'
             else:
                 color_target = 'TiTv'
 
-            # Filtering
+            # --- FILTERING ---
             df_filtered = final_df[
                 (final_df['Depth'] >= depth_min) & 
                 (final_df['Het_Rate'].between(het_range[0], het_range[1]))
             ].dropna(subset=['nHet', 'nHomAlt'])
 
-            # --- DISPLAY ---
+            # --- DISPLAY DASHBOARD ---
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("Samples", len(df_filtered))
             m2.metric("Avg Ti/Tv", f"{df_filtered['TiTv'].mean():.2f}")
             m3.metric("Avg Het_Rate", f"{df_filtered['Het_Rate'].mean():.3f}")
-            m4.metric("Founders", len(df_filtered[df_filtered['nHomAlt'] > 5000000]))
+            m4.metric("Potential Founders", len(df_filtered[df_filtered['nHomAlt'] > 5000000]))
 
             t1, t2, t3, t4 = st.tabs(["🎯 Discovery Map", "📊 Distribution", "🧬 Ideogram", "🌡️ Lead-List"])
 
@@ -106,15 +109,17 @@ if genomic_file is not None:
                 st.plotly_chart(fig1, use_container_width=True)
 
             with t2:
+                st.subheader("Population Heterozygosity (Diversity Check)")
                 fig2 = px.violin(df_filtered, y="Het_Rate", box=True, points="all", template="plotly_dark")
                 st.plotly_chart(fig2, use_container_width=True)
 
             with t3:
-                st.info("Visualizing variant hotspots across goat chromosomes (2n=60).")
+                st.subheader("Chromosomal Variant Density")
                 chrom_data = pd.DataFrame({'CHR': [f"Chr{i}" for i in range(1, 31)], 'Density': np.random.uniform(0.5, 3.0, 30)})
                 st.plotly_chart(px.bar(chrom_data, x='CHR', y='Density', color='Density', template='plotly_dark'), use_container_width=True)
 
             with t4:
+                st.subheader("Top Stabilized Candidates")
                 st.dataframe(df_filtered.sort_values('nHomAlt', ascending=False))
 
     except Exception as e:
