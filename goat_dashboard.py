@@ -31,7 +31,7 @@ def go_to(phase_num):
     st.session_state.phase = phase_num
 
 # --- SIDEBAR NAVIGATION ---
-st.sidebar.title("🔬 Research Objectives")
+st.sidebar.title("Research Objectives")
 st.sidebar.info(f"Active Phase: {st.session_state.phase}")
 if st.sidebar.button("Phase 1: Population"): go_to(1)
 if st.sidebar.button("Phase 2: Integration"): go_to(2)
@@ -41,7 +41,7 @@ st.sidebar.divider()
 if st.sidebar.button("Reset All"): st.session_state.clear(); st.rerun()
 
 # --- MAIN HEADER ---
-st.title("📊 Genomic Architecture of Milk Quality: Saanen Herd Analysis")
+st.title("Genomic Architecture of Milk Quality: Saanen Herd Analysis")
 st.caption("Standardized Scientific Workflow for 298 Saanen Dairy Goats | Objectives 1-4")
 st.divider()
 
@@ -68,7 +68,7 @@ if st.session_state.phase == 1:
             fig1b = px.violin(df, y="Het_Rate", box=True, points="all", template=NATURE_THEME)
             st.plotly_chart(fig1b, use_container_width=True)
 
-        st.success("✅ Objective 1 Validated. Ready for Integration.")
+        st.success("Objective 1 Validated. Ready for Integration.")
         st.button("Proceed to Phase 2 ➡️", on_click=lambda: go_to(2))
 
 # ---------------------------------------------------------
@@ -77,8 +77,8 @@ if st.session_state.phase == 1:
 elif st.session_state.phase == 2:
     st.header("Phase 2: Phenotype Integration")
     c1, c2 = st.columns(2)
-    with c1: f_gen = st.file_uploader("📂 Confirm Genomic Stats", type='csv', key="g2_upload")
-    with c2: f_pheno = st.file_uploader("📥 Upload 'milk_phenotypes.csv'", type='csv', key="p2_upload")
+    with c1: f_gen = st.file_uploader("Confirm Genomic Stats", type='csv', key="g2_upload")
+    with c2: f_pheno = st.file_uploader("Upload 'milk_phenotypes.csv'", type='csv', key="p2_upload")
 
     if f_gen and f_pheno:
         df_g = pd.read_csv(f_gen); df_p = pd.read_csv(f_pheno)
@@ -94,15 +94,15 @@ elif st.session_state.phase == 2:
         fig2 = px.bar(merged, x="Sample", y=trait_prev, color=trait_prev, 
                      color_continuous_scale=PALETTE_TRAIT, template=NATURE_THEME)
         st.plotly_chart(fig2, use_container_width=True)
-        st.button("Proceed to Phase 3 ➡️", on_click=lambda: go_to(3))
+        st.button("Proceed to Phase 3 ", on_click=lambda: go_to(3))
 
 # ---------------------------------------------------------
 # PHASE 3: SCIENTIFIC DISCOVERY (Objective 3)
 # ---------------------------------------------------------
 elif st.session_state.phase == 3:
     st.header("Phase 3: Genotype-Phenotype Association")
-    g_file = st.file_uploader("📂 Final Genomic Data", type='csv', key="g3_upload")
-    p_file = st.file_uploader("📥 Final Phenotype Data", type='csv', key="p3_upload")
+    g_file = st.file_uploader("Final Genomic Data", type='csv', key="g3_upload")
+    p_file = st.file_uploader("Final Phenotype Data", type='csv', key="p3_upload")
 
     if g_file and p_file:
         df_g = pd.read_csv(g_file); df_p = pd.read_csv(p_file)
@@ -126,7 +126,7 @@ elif st.session_state.phase == 3:
         c2.metric("Significance (P)", f"{p_val:.4e}")
         c3.metric("Samples (N)", len(df))
 
-        st.success(f"✅ Objective 3: {trait} Association Analyzed.")
+        st.success(f"Objective 3: {trait} Association Analyzed.")
         st.button("Proceed to Phase 4: Selection ➡️", on_click=lambda: go_to(4))
 
 # ---------------------------------------------------------
@@ -136,8 +136,8 @@ elif st.session_state.phase == 4:
     st.header("Phase 4: Elite Selection & Genomic Prediction")
     st.markdown("##### Objective: Identify High-Merit Individuals for Breeding Programs")
     
-    g_f = st.file_uploader("📂 Final Genomic Data", type='csv', key="g4_upload")
-    p_f = st.file_uploader("📥 Final Phenotype Data", type='csv', key="p4_upload")
+    g_f = st.file_uploader("Final Genomic Data", type='csv', key="g4_upload")
+    p_f = st.file_uploader("Final Phenotype Data", type='csv', key="p4_upload")
 
     if g_f and p_f:
         df_g = pd.read_csv(g_f); df_p = pd.read_csv(p_f)
@@ -159,7 +159,7 @@ elif st.session_state.phase == 4:
             fig4 = px.scatter(df, x="nHomAlt", y=trait, size="Display_Size", color="Merit_Score",
                               hover_name="Sample", color_continuous_scale=PALETTE_MERIT, template=NATURE_THEME)
             st.plotly_chart(fig4, use_container_width=True)
-            st.info("💡 **Interpretation:** Larger, Green circles indicate superior breeding candidates.")
+            st.info(" **Interpretation:** Larger, Green circles indicate superior breeding candidates.")
 
         with col_y:
             st.subheader("Elite Breeding Candidates")
@@ -168,4 +168,4 @@ elif st.session_state.phase == 4:
                 st.metric(f"Goat ID: {row['Sample']}", f"Merit: {row['Merit_Score']:.3f}", f"Rank {i+1}")
 
         st.divider()
-        st.success("📂 **Objective 4 Complete:** Breeding selection generated for Nature Publication.")
+        st.success(" **Objective 4 Complete:** Breeding selection generated.")
