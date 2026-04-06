@@ -21,7 +21,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 st.title("🧬 Saanen Lineage & Milk-Marker Discovery")
-st.markdown("#### Phase 2: Robust Phenotype-Genotype Correlation")
+st.markdown("#### Phase 2: Flexible Phenotype Mapping")
 
 # --- SIDEBAR: DISCOVERY FILTERS ---
 st.sidebar.header("🔬 Selection Criteria")
@@ -39,15 +39,12 @@ if genomic_file is not None:
     try:
         # 1. PROCESS GENOMIC DATA
         raw_genomic = genomic_file.getvalue().decode("utf-8")
-        # Extract PSC rows from BCFtools output
         genomic_lines = [l.strip().split() for l in raw_genomic.splitlines() if l.startswith("PSC")]
         
         if not genomic_lines:
             st.error("❌ No PSC rows found in the Genomic Stats file.")
         else:
             df_genomic = pd.DataFrame(genomic_lines)
-            
-            # Mapping verified: Col 2:ID, 4:nHet, 5:nHomAlt, 9:TiTv, 13:Depth
             final_df = pd.DataFrame({
                 'Sample': df_genomic[2],
                 'nHet': pd.to_numeric(df_genomic[4], errors='coerce'),
@@ -57,30 +54,42 @@ if genomic_file is not None:
             })
             final_df['Het_Rate'] = final_df['nHet'] / (final_df['nHet'] + final_df['nHomAlt'])
         
-            # 2. ROBUST PROCESS FOR MILK QUALITY TEXT FILE
+            # 2. FLEXIBLE PROCESS FOR MILK QUALITY TEXT FILE
             if pheno_file is not None:
                 raw_pheno = pheno_file.getvalue().decode("utf-8")
                 pheno_lines = raw_pheno.splitlines()
-                
-                # Split lines manually to ignore structural shifts (Fixes Line 23 error)
                 pheno_split_data = [line.strip().split() for line in pheno_lines if line.strip()]
                 
                 if len(pheno_split_data) > 1:
                     df_pheno = pd.DataFrame(pheno_split_data[1:], columns=pheno_split_data[0])
                     
-                    if 'Sample' in df_pheno.columns:
-                        for col in df_pheno.columns:
-                            if col != 'Sample':
-                                df_pheno[col] = pd.to_numeric(df_pheno[col], errors='coerce')
-                        
-                        final_df = pd.merge(final_df, df_pheno, on='Sample', how='left')
-                        st.success("✅ Milk Quality linked to Genomic IDs.")
-                        
-                        trait_options = [c for c in df_pheno.columns if c != 'Sample']
-                        color_target = st.selectbox("Colorize by Trait:", trait_options)
-                    else:
-                        st.error("❌ 'Sample' column not found in Milk Quality file.")
-                        color_target = 'TiTv'
+                    # FLEXIBLE COLUMN MATCHING
+                    # Look for anything that looks like a Sample ID column
+                    possible_id_cols = ['Sample', 'ID', 'SampleID', 'Individual', 'Name', 'goat_id']
+                    found_col = None
+                    
+                    for c in df_pheno.columns:
+                        if c.strip() in possible_id_cols or c.lower() in [p.lower() for p in possible_id_cols]:
+                            found_col = c
+                            break
+                    
+                    # If no common names found, default to the VERY FIRST column
+                    if not found_col:
+                        found_col = df_pheno.columns[0]
+                        st.info(f"ℹ️ Auto-detecting ID: Using '{found_col}' as the Sample column.")
+                    
+                    df_pheno = df_pheno.rename(columns={found_col: 'Sample'})
+
+                    # Cast traits to numeric
+                    for col in df_pheno.columns:
+                        if col != 'Sample':
+                            df_pheno[col] = pd.to_numeric(df_pheno[col], errors='coerce')
+                    
+                    final_df = pd.merge(final_df, df_pheno, on='Sample', how='left')
+                    st.success(f"✅ Linked using column: {found_col}")
+                    
+                    trait_options = [c for c in df_pheno.columns if c != 'Sample']
+                    color_target = st.selectbox("Colorize by Trait:", trait_options)
                 else:
                     color_target = 'TiTv'
             else:
@@ -124,7 +133,7 @@ if genomic_file is not None:
                                       color_continuous_scale='Reds', template='plotly_dark'), use_container_width=True)
 
             with t4:
-                st.subheader("Candidate Lead-List (Sorted by Stabilization)")
+                st.subheader("Candidate Lead-List")
                 st.dataframe(df_filtered.sort_values('nHomAlt', ascending=False))
 
     except Exception as e:
