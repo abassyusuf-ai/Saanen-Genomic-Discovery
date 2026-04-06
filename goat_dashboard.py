@@ -22,18 +22,19 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- SESSION STATE ---
+# --- SESSION STATE MANAGEMENT ---
 if 'phase' not in st.session_state:
     st.session_state.phase = 1
 
 def go_to(phase_num):
     st.session_state.phase = phase_num
 
-# --- SIDEBAR ---
+# --- SIDEBAR NAVIGATION ---
 st.sidebar.title("🔬 Research Objectives")
 st.sidebar.info(f"Currently in: Phase {st.session_state.phase}")
 if st.sidebar.button("Reset to Phase 1"): go_to(1)
 
+# --- MAIN HEADER ---
 st.title("📊 Genomic Architecture of Milk Quality: Saanen Herd Analysis")
 st.caption("Standardized Scientific Workflow for 298 Saanen Dairy Goats")
 st.divider()
@@ -47,7 +48,7 @@ if st.session_state.phase == 1:
     
     if gen_file:
         df = pd.read_csv(gen_file)
-        df.columns = df.columns.str.strip()
+        df.columns = df.columns.str.strip() # Clean column names
         df['Het_Rate'] = df['nHet'] / (df['nHet'] + df['nHomAlt'])
 
         col_a, col_b = st.columns([2, 1])
@@ -62,8 +63,8 @@ if st.session_state.phase == 1:
             fig1b = px.violin(df, y="Het_Rate", box=True, points="all", template=NATURE_THEME)
             st.plotly_chart(fig1b, use_container_width=True)
 
-        st.success("✅ Data Validated.")
-        st.button("Proceed to Phase 2 ➡️", on_click=lambda: go_to(2))
+        st.success("✅ Genomic Data Validated.")
+        st.button("Proceed to Phase 2: Integration ➡️", on_click=lambda: go_to(2))
 
 # ---------------------------------------------------------
 # PHASE 2: PHENOTYPE INTEGRATION (Objective 2)
@@ -75,15 +76,32 @@ if st.session_state.phase == 2:
     with c2: f_pheno = st.file_uploader("📥 Upload 'milk_phenotypes.csv'", type='csv')
 
     if f_gen and f_pheno:
-        df_g = pd.read_csv(f_gen); df_p = pd.read_csv(f_pheno)
+        df_g = pd.read_csv(f_gen)
+        df_p = pd.read_csv(f_pheno)
+        
+        # HARMONIZATION: Clean spaces from 'Sample' and other columns
+        df_g.columns = df_g.columns.str.strip()
+        df_p.columns = df_p.columns.str.strip()
+        df_g['Sample'] = df_g['Sample'].astype(str).str.strip()
+        df_p['Sample'] = df_p['Sample'].astype(str).str.strip()
+        
         merged = pd.merge(df_g, df_p, on='Sample', how='inner')
+        
         st.subheader("Table 1: Integrated Research Dataset")
         st.dataframe(merged.style.background_gradient(cmap='YlGnBu'), use_container_width=True)
 
-        trait_prev = st.selectbox("Select Trait for Preview:", [c for c in df_p.columns if c != 'Sample'])
-        fig2 = px.bar(merged, x="Sample", y=trait_prev, color=trait_prev, color_continuous_scale=PALETTE_TRAIT)
+        # FIXED BAR CHART REPRESENTATION
+        trait_cols = [c for c in df_p.columns if c != 'Sample']
+        trait_prev = st.selectbox("Select Trait for Bar Representation:", trait_cols)
+        
+        fig2 = px.bar(merged, x="Sample", y=trait_prev, color=trait_prev, 
+                     color_continuous_scale=PALETTE_TRAIT, template=NATURE_THEME,
+                     title=f"Comparative Distribution: {trait_prev}")
         st.plotly_chart(fig2, use_container_width=True)
-        st.button("Proceed to Phase 3 ➡️", on_click=lambda: go_to(3))
+        
+        col_nav1, col_nav2 = st.columns(2)
+        with col_nav1: st.button("⬅️ Back to Phase 1", on_click=lambda: go_to(1))
+        with col_nav2: st.button("Proceed to Phase 3: Discovery ➡️", on_click=lambda: go_to(3))
 
 # ---------------------------------------------------------
 # PHASE 3: SCIENTIFIC DISCOVERY (Objective 3)
@@ -95,10 +113,12 @@ if st.session_state.phase == 3:
 
     if g_file and p_file:
         df_g = pd.read_csv(g_file); df_p = pd.read_csv(p_file)
+        df_g.columns = df_g.columns.str.strip(); df_p.columns = df_p.columns.str.strip()
         df = pd.merge(df_g, df_p, on='Sample', how='inner')
+        
         trait = st.selectbox("Select Discovery Target:", [c for c in df_p.columns if c != 'Sample'])
 
-        # --- MANUAL REGRESSION (No statsmodels needed) ---
+        # MANUAL REGRESSION (Stable calculation for Figure 3)
         slope, intercept, r_val, p_val, std_err = stats.linregress(df['nHomAlt'], df[trait])
         x_range = np.linspace(df['nHomAlt'].min(), df['nHomAlt'].max(), 100)
         y_range = slope * x_range + intercept
@@ -106,7 +126,6 @@ if st.session_state.phase == 3:
         fig3 = px.scatter(df, x="nHomAlt", y=trait, color="nHet", size="Depth",
                          color_continuous_scale=PALETTE_DISCOVERY, template=NATURE_THEME)
         
-        # Add the trendline manually as a red line
         fig3.add_trace(go.Scatter(x=x_range, y=y_range, mode='lines', name='Regression Line', line=dict(color='red', width=3)))
         
         st.subheader(f"Figure 3: Linear Regression - Genomic Stability vs. {trait}")
@@ -120,7 +139,8 @@ if st.session_state.phase == 3:
         if p_val < 0.05:
             st.success("✅ **Finding:** This association is statistically significant.")
         else:
-            st.warning("📊 **Finding:** Positive trend observed. More samples needed for significance.")
+            st.warning("📊 **Finding:** Positive trend observed. Significance pending full N=298 dataset.")
 
         st.subheader("Elite Selection: Top Producers")
         st.dataframe(df.sort_values(trait, ascending=False).head(10), use_container_width=True)
+        st.button("⬅️ Back to Phase 2", on_click=lambda: go_to(2))
