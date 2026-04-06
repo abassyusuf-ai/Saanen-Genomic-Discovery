@@ -50,7 +50,7 @@ st.divider()
 # ---------------------------------------------------------
 if st.session_state.phase == 1:
     st.header("Phase 1: Population Genomic Structure")
-    gen_file = st.file_uploader("📥 Upload 'genomic_stats.csv'", type=['csv'], key="p1_upload")
+    gen_file = st.file_uploader("Upload 'genomic_stats.csv'", type=['csv'], key="p1_upload")
     
     if gen_file:
         df = pd.read_csv(gen_file)
@@ -69,7 +69,7 @@ if st.session_state.phase == 1:
             st.plotly_chart(fig1b, use_container_width=True)
 
         st.success("Objective 1 Validated. Ready for Integration.")
-        st.button("Proceed to Phase 2 ➡️", on_click=lambda: go_to(2))
+        st.button("Proceed to Phase 2 ", on_click=lambda: go_to(2))
 
 # ---------------------------------------------------------
 # PHASE 2: PHENOTYPE INTEGRATION (Objective 2)
@@ -127,7 +127,7 @@ elif st.session_state.phase == 3:
         c3.metric("Samples (N)", len(df))
 
         st.success(f"Objective 3: {trait} Association Analyzed.")
-        st.button("Proceed to Phase 4: Selection ➡️", on_click=lambda: go_to(4))
+        st.button("Proceed to Phase 4: Selection ", on_click=lambda: go_to(4))
 
 # ---------------------------------------------------------
 # PHASE 4: ELITE BREEDING SELECTION (Objective 4)
