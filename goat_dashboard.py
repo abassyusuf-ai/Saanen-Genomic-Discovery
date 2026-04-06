@@ -125,3 +125,5 @@ if st.session_state.phase == 3:
             st.warning("📊 **Observation:** Positive trend identified, but full N=298 dataset is required to reach Nature-level significance ($p < 0.05$).")
 
         st.button("⬅️ Back to Phase 2", on_click=lambda: go_to(2))
+
+>>>>>>> 79d275d4449cd303845f0662447092d482ca4d76
